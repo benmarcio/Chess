@@ -26,6 +26,10 @@ class Board:
         self.side_to_move = 1
         
         self.en_passant_target = None
+        
+        # Track move history for detecting repetition and fifty-move rule
+        self.move_history = []  # List of board positions (as tuples for hashing)
+        self.moves_since_capture_or_pawn = 0  # For fifty-move rule
 
 
     def add_piece(self, piece, row, col):
@@ -36,6 +40,10 @@ class Board:
         initial_row, initial_col = start_pos
         final_row, final_col = end_pos
         piece = self.squares[initial_row][initial_col]
+        
+        # Save what's at the destination BEFORE any moves (for capture detection)
+        captured_piece = self.squares[final_row][final_col]
+        is_pawn_move = abs(int(piece)) == 1
         
         # 1. HANDLE EN PASSANT CAPTURE
         # If a pawn moves diagonally to an empty square, it MUST be En Passant
@@ -128,8 +136,63 @@ class Board:
             self.squares[final_row][final_col] = 5
         if int(piece) == -1 and final_row == 7:
             self.squares[final_row][final_col] = -5
+        
+        # Update fifty-move rule counter
+        if captured_piece != 0 or is_pawn_move:
+            self.moves_since_capture_or_pawn = 0
+        else:
+            self.moves_since_capture_or_pawn += 1
+        
         # flip side to move after normal move
         self.side_to_move *= -1
+        
+        # Store current position in move history AFTER flipping side_to_move
+        board_state = self._get_board_state()
+        self.move_history.append(board_state)
+
+    def _get_board_state(self):
+        """Get a hashable representation of the board state including side to move, castling, and en passant."""
+        # Convert numpy array to nested tuple properly
+        board_tuple = tuple(tuple(int(x) for x in row) for row in self.squares)
+        
+        # Include castling rights and en passant in the state
+        castling = (
+            self.white_king_moved,
+            self.black_king_moved,
+            self.white_rook_kingside_moved,
+            self.white_rook_queenside_moved,
+            self.black_rook_kingside_moved,
+            self.black_rook_queenside_moved
+        )
+        
+        # Convert en passant to tuple or None
+        ep = tuple(self.en_passant_target) if self.en_passant_target else None
+        
+        return (board_tuple, self.side_to_move, castling, ep)
+    
+    def is_threefold_repetition(self):
+        """Check if the current position has been repeated three times."""
+        # Need at least 9 half-moves for a real threefold repetition
+        # (positions can only repeat after both players have moved at least twice)
+        if len(self.move_history) < 9:
+            return False
+        
+        # Get current state (already stored with correct side_to_move)
+        current_state = self._get_board_state()
+        
+        # Count occurrences in the entire history
+        count = 0
+        for state in self.move_history:
+            if state == current_state:
+                count += 1
+                if count >= 3:
+                    return True
+        
+        return False
+    
+    def is_fifty_move_rule(self):
+        """Check if fifty moves have passed without capture or pawn move."""
+        return self.moves_since_capture_or_pawn >= 100  # 100 half-moves = 50 full moves
 
     def is_on_board(self, row, col):
         return 0 <= row <= 7 and 0 <= col <= 7
