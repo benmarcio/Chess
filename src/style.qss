@@ -1,0 +1,112 @@
+/* Chess App Stylesheet */
+
+QMainWindow {
+    background-color: #2b2b2b;
+    color: #ffffff;
+}
+
+QWidget {
+    background-color: #2b2b2b;
+    color: #ffffff;
+}
+
+QMenuBar {
+    background-color: #1e1e1e;
+    color: #ffffff;
+    border-bottom: 1px solid #3d3d3d;
+}
+
+QMenuBar::item:selected {
+    background-color: #3d5a80;
+}
+
+QMenu {
+    background-color: #1e1e1e;
+    color: #ffffff;
+    border: 1px solid #3d3d3d;
+}
+
+QMenu::item:selected {
+    background-color: #3d5a80;
+}
+
+QStatusBar {
+    background-color: #1e1e1e;
+    color: #ffffff;
+    border-top: 1px solid #3d3d3d;
+}
+
+QLabel {
+    color: #ffffff;
+}
+
+QListWidget {
+    background-color: #363636;
+    color: #ffffff;
+    border: 1px solid #3d3d3d;
+    border-radius: 4px;
+}
+
+QListWidget::item:selected {
+    background-color: #3d5a80;
+    border-radius: 2px;
+}
+
+QListWidget::item:hover {
+    background-color: #454545;
+}
+
+QPushButton {
+    background-color: #3d5a80;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-weight: bold;
+}
+
+QPushButton:hover {
+    background-color: #4a6fa5;
+}
+
+QPushButton:pressed {
+    background-color: #2d4563;
+}
+
+QSplitter::handle {
+    background-color: #3d3d3d;
+    width: 2px;
+}
+
+/* Scrollbars */
+QScrollBar:vertical {
+    background-color: #363636;
+    width: 12px;
+    border: none;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #555555;
+    border-radius: 6px;
+    min-height: 20px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #666666;
+}
+
+QScrollBar:horizontal {
+    background-color: #363636;
+    height: 12px;
+    border: none;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: #555555;
+    border-radius: 6px;
+    min-width: 20px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background-color: #666666;
+}
