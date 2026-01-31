@@ -114,7 +114,7 @@ class Piece:
     def get_pawn_moves(board, row, col, piece_value):
         moves = []
 
-        # direction: white (positive) moves up (row-1), black moves down (row+1)
+        # white (positive) moves up (row-1), black moves down (row+1)
         direction = -1 if piece_value > 0 else 1
 
         
@@ -140,4 +140,12 @@ class Piece:
                 elif hasattr(board, 'en_passant_target') and board.en_passant_target == (cr, cc):
                     moves.append((cr, cc))
 
+        # If there is an en_passant_target and it is reachable by a diagonal capture
+        if board.en_passant_target:
+            ep_row, ep_col = board.en_passant_target
+            # Check if the target is diagonally in front of the pawn
+            if ep_row == row + direction and abs(ep_col - col) == 1:
+                moves.append((ep_row, ep_col))
+        
+        
         return moves
