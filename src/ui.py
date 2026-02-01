@@ -1,6 +1,12 @@
 import pygame
 import sys
 import os
+
+# Add parent directory to path so we can import models BEFORE other imports
+ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
+if ROOT_DIR not in sys.path:
+    sys.path.append(ROOT_DIR)
+
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QListWidget, QSplitter, QDialog,
@@ -10,13 +16,7 @@ from PyQt5.QtCore import Qt, QTimer, QSize, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage, QFont
 import random
 from board import Board
-
-# Add parent directory to path so we can import models
-ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
-if ROOT_DIR not in sys.path:
-    sys.path.append(ROOT_DIR)
-
-from models.alphabeta_bot import choose_move
+from models.bot import AlphaBetaBot, RandomBot, AggressiveBot, CautiousBot, TacticalBot
 
 
 class ColorSelectionDialog(QDialog):
@@ -60,6 +60,9 @@ class StartScreenWidget(QWidget):
         self.selected_time = 0
         self.white_depth = 3  # Default depth for white bot
         self.black_depth = 3  # Default depth for black bot
+        self.bot_type = 'alphabeta'  # Default bot type for player vs bot
+        self.white_type = 'alphabeta'  # Default bot type for white in bot vs bot
+        self.black_type = 'alphabeta'  # Default bot type for black in bot vs bot
 
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignCenter)
@@ -131,6 +134,20 @@ class StartScreenWidget(QWidget):
         bot_box.addWidget(bot_time, alignment=Qt.AlignCenter)
         self.bot_time_combo = bot_time
 
+        # Bot type selector for Player vs Bot
+        bot_type_label = QLabel('Bot Difficulty:')
+        bot_type_label.setFont(QFont('Arial', 10))
+        bot_type_combo = QComboBox()
+        bot_type_combo.addItems(['AlphaBeta', 'Random', 'Aggressive', 'Cautious', 'Tactical'])
+        bot_type_combo.setCurrentIndex(0)
+        bot_type_combo.setFixedSize(300, 40)
+        bot_type_combo.setFont(QFont('Arial', 11))
+        bot_type_combo.setFocusPolicy(Qt.NoFocus)
+        bot_type_combo.currentIndexChanged.connect(lambda idx: setattr(self, 'bot_type', bot_type_combo.currentText().lower()))
+        bot_box.addWidget(bot_type_label, alignment=Qt.AlignCenter)
+        bot_box.addWidget(bot_type_combo, alignment=Qt.AlignCenter)
+        self.bot_type_combo = bot_type_combo
+
         layout.addLayout(bot_box)
 
         layout.addSpacing(20)
@@ -172,6 +189,34 @@ class StartScreenWidget(QWidget):
         depth_box.addWidget(black_depth_label)
         depth_box.addWidget(black_depth_combo)
         
+        depth_box.addSpacing(20)
+        
+        white_type_label = QLabel('White Type:')
+        white_type_label.setFont(QFont('Arial', 10))
+        white_type_combo = QComboBox()
+        white_type_combo.addItems(['AlphaBeta', 'Random', 'Aggressive', 'Cautious', 'Tactical'])
+        white_type_combo.setCurrentIndex(0)
+        white_type_combo.setFixedWidth(100)
+        white_type_combo.setFont(QFont('Arial', 10))
+        white_type_combo.setFocusPolicy(Qt.NoFocus)
+        white_type_combo.currentIndexChanged.connect(lambda idx: setattr(self, 'white_type', white_type_combo.currentText().lower()))
+        depth_box.addWidget(white_type_label)
+        depth_box.addWidget(white_type_combo)
+        
+        depth_box.addSpacing(20)
+        
+        black_type_label = QLabel('Black Type:')
+        black_type_label.setFont(QFont('Arial', 10))
+        black_type_combo = QComboBox()
+        black_type_combo.addItems(['AlphaBeta', 'Random', 'Aggressive', 'Cautious', 'Tactical'])
+        black_type_combo.setCurrentIndex(0)
+        black_type_combo.setFixedWidth(100)
+        black_type_combo.setFont(QFont('Arial', 10))
+        black_type_combo.setFocusPolicy(Qt.NoFocus)
+        black_type_combo.currentIndexChanged.connect(lambda idx: setattr(self, 'black_type', black_type_combo.currentText().lower()))
+        depth_box.addWidget(black_type_label)
+        depth_box.addWidget(black_type_combo)
+        
         depth_box.addStretch()
         botbot_box.addLayout(depth_box)
         
@@ -191,6 +236,9 @@ class StartScreenWidget(QWidget):
             'time': self.selected_time,
             'white_depth': self.white_depth,
             'black_depth': self.black_depth,
+            'bot_type': self.bot_type,
+            'white_type': self.white_type,
+            'black_type': self.black_type,
         }
         self.start_game.emit(payload)
 
@@ -273,6 +321,11 @@ class BoardWidget(QWidget):
         # Bot search depths
         self.white_bot_depth = 3  # Default depth for white bot
         self.black_bot_depth = 3  # Default depth for black bot
+        
+        self.white_bot_type = 'alphabeta'  # Store which bot type to use
+        self.black_bot_type = 'alphabeta'
+        self.white_bot = None  # Will be created when game starts
+        self.black_bot = None
 
         # Bot move highlight (visual feedback)
         self.last_move_from = None
@@ -285,6 +338,18 @@ class BoardWidget(QWidget):
         self.setMinimumSize(QSize(self.width, self.height))
         self.setMaximumSize(QSize(self.width, self.height))
         self.setFocusPolicy(Qt.StrongFocus)
+
+    def _create_bot(self, bot_type: str, color: int, depth: int):
+        """Factory method to create bot instances"""
+        bots = {
+            'alphabeta': AlphaBetaBot,
+            'random': RandomBot,
+            'aggressive': AggressiveBot,
+            'cautious': CautiousBot,
+            'tactical': TacticalBot,
+        }
+        bot_class = bots.get(bot_type, AlphaBetaBot)
+        return bot_class(color=color, depth=depth)
 
     def _is_simple_repetition(self):
         """Detect a simple repetition loop based on recent move patterns."""
@@ -466,13 +531,18 @@ class BoardWidget(QWidget):
         else:
             return
 
-        # Use the appropriate depth based on whose turn it is
+        # Use the appropriate bot based on whose turn it is
         if self.bot_vs_bot:
-            depth = self.white_bot_depth if self.board.side_to_move == 1 else self.black_bot_depth
+            if self.board.side_to_move == 1:
+                move = self.white_bot.get_move(self.board)
+            else:
+                move = self.black_bot.get_move(self.board)
         else:
-            depth = 1  # Player vs bot uses depth 1 for the bot
+            # Player vs bot: create a new bot for player's opponent with depth 1
+            bot_type = getattr(self, 'player_bot_type', 'alphabeta')
+            bot = self._create_bot(bot_type, self.board.side_to_move, 1)
+            move = bot.get_move(self.board)
         
-        move = choose_move(self.board, self.board.side_to_move, depth=depth)
         if move is None:
             return
 
@@ -714,6 +784,9 @@ class MainWindow(QMainWindow):
         sel_time = selection.get('time', 0)
         white_depth = selection.get('white_depth', 3)
         black_depth = selection.get('black_depth', 3)
+        bot_type = selection.get('bot_type', 'alphabeta')
+        white_type = selection.get('white_type', 'alphabeta')
+        black_type = selection.get('black_type', 'alphabeta')
 
         self.time_control_seconds = sel_time
 
@@ -725,8 +798,15 @@ class MainWindow(QMainWindow):
         self.board_widget.auto_rotate = (sel_mode == 'pvp')
         self.board_widget.white_bot_depth = white_depth
         self.board_widget.black_bot_depth = black_depth
-        self.color_label.setText('Playing as White' if self.player_color == 1 else 'Playing as Black')
-        self.board_widget.update()
+        
+        # Create bot instances with selected types and depths
+        self.board_widget.white_bot = self.board_widget._create_bot(white_type, 1, white_depth)
+        self.board_widget.black_bot = self.board_widget._create_bot(black_type, -1, black_depth)
+        self.board_widget.player_bot_type = bot_type
+        
+        # Store bot type information for PGN saving
+        self.white_bot_type = white_type
+        self.black_bot_type = black_type
 
         if sel_time and sel_time > 0:
             self.white_time = sel_time
@@ -857,9 +937,19 @@ class MainWindow(QMainWindow):
 
     def _get_player_names(self):
         if self.board_widget.player_vs_bot:
+            # Player vs Bot: include bot type in the name
+            bot_type = getattr(self, 'white_bot_type', 'alphabeta')
+            bot_name = bot_type.capitalize() + ' Bot'
             if self.player_color == 1:
-                return 'Player', 'Bot'
-            return 'Bot', 'Player'
+                return 'Player', bot_name
+            return bot_name, 'Player'
+        elif self.board_widget.bot_vs_bot:
+            # Bot vs Bot: include both bot types
+            white_type = getattr(self, 'white_bot_type', 'alphabeta')
+            black_type = getattr(self, 'black_bot_type', 'alphabeta')
+            white_name = white_type.capitalize() + ' Bot'
+            black_name = black_type.capitalize() + ' Bot'
+            return white_name, black_name
         return 'White', 'Black'
 
     def _get_pgn_result(self):

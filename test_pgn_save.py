@@ -9,8 +9,13 @@ ROOT_DIR = os.path.dirname(__file__)
 if ROOT_DIR not in sys.path:
     sys.path.append(ROOT_DIR)
 
-from src.board import Board
-from models.alphabeta_bot import choose_move
+# Add src to path for imports
+SRC_DIR = os.path.join(ROOT_DIR, 'src')
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
+
+from board import Board
+from models.bot import AlphaBetaBot
 
 def test_bot_vs_bot_pgn_save():
     """Test bot vs bot game and PGN save"""
@@ -18,10 +23,16 @@ def test_bot_vs_bot_pgn_save():
     moves = []
     max_moves = 50  # Limit to 50 moves to prevent infinite games
     
+    # Create bots for both sides
+    white_bot = AlphaBetaBot(color=1, depth=3)
+    black_bot = AlphaBetaBot(color=-1, depth=3)
+    
     print("Starting bot vs bot test game...")
     
     for move_num in range(max_moves):
-        move = choose_move(board, board.side_to_move, depth=3)
+        # Get the appropriate bot for the current side
+        bot = white_bot if board.side_to_move == 1 else black_bot
+        move = bot.get_move(board)
         if move is None:
             print(f"No move found for {board.side_to_move}")
             break
